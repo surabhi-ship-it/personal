@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG Simulator — Learn Retrieval-Augmented Generation</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    :root {
+        --bg: #080b12;
+        --panel: #10151f;
+        --panel-2: #151b27;
+        --border: #252d3b;
+        --text: #eef2f7;
+        --muted: #8993a4;
+        --accent: #7c8cff;
+        --accent-2: #43d9a3;
+        --orange: #ffb454;
+        --red: #ff6b7a;
+        --blue: #5db7ff;
+        --shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+
+    body {
+        margin: 0;
+        background:
+            radial-gradient(circle at 10% 0%, rgba(124,140,255,.13), transparent 28%),
+            radial-gradient(circle at 90% 10%, rgba(67,217,163,.08), transparent 25%),
+            var(--bg);
+        color: var(--text);
+        font-family:
+            Inter, ui-sans-serif, system-ui, -apple-system,
+            BlinkMacSystemFont, "Segoe UI", sans-serif;
+        min-height: 100vh;
+    }
+
+    button, textarea, input {
+        font: inherit;
+    }
+
+    .app {
+        width: min(1400px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 34px 0 60px;
+    }
+
+    /* HEADER */
+
+    .hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 30px;
+        align-items: flex-start;
+        margin-bottom: 30px;
+    }
+
+    .eyebrow {
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: clamp(30px, 4vw, 52px);
+        line-height: 1;
+        letter-spacing: -.04em;
+    }
+
+    .hero p {
+        max-width: 720px;
+        color: var(--muted);
+        line-height: 1.6;
+        margin: 15px 0 0;
+        font-size: 15px;
+    }
+
+    .definition {
+        min-width: 300px;
+        padding: 18px;
+        border: 1px solid var(--border);
+        background: rgba(16,21,31,.75);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+    }
+
+    .definition strong {
+        display: block;
+        font-size: 20px;
+        margin-bottom: 8px;
+    }
+
+    .definition span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    /* PIPELINE */
+
+    .pipeline {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 8px;
+        margin-bottom: 28px;
+    }
+
+    .pipeline-step {
+        position: relative;
+        min-height: 78px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: .2s ease;
+    }
+
+    .pipeline-step:hover {
+        border-color: #3a4558;
+        transform: translateY(-2px);
+    }
+
+    .pipeline-step.active {
+        border-color: var(--accent);
+        background: rgba(124,140,255,.1);
+        box-shadow: 0 0 0 1px rgba(124,140,255,.15);
+    }
+
+    .pipeline-step .number {
+        font-size: 10px;
+        color: var(--muted);
+        font-weight: 800;
+    }
+
+    .pipeline-step .name {
+        font-size: 12px;
+        font-weight: 750;
+        margin-top: 7px;
+    }
+
+    .pipeline-step .mini {
+        color: var(--muted);
+        font-size: 10px;
+        margin-top: 4px;
+    }
+
+    /* CONTROLS */
+
+    .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+    }
+
+    button {
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+        color: var(--text);
+        padding: 11px 15px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: .18s ease;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    button:hover {
+        border-color: #45516a;
+        background: #1a2130;
+    }
+
+    button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #080b12;
+    }
+
+    button.primary:hover {
+        filter: brightness(1.08);
+    }
+
+    button.green {
+        background: rgba(67,217,163,.13);
+        border-color: rgba(67,217,163,.4);
+        color: var(--accent-2);
+    }
+
+    /* MAIN GRID */
+
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+    }
+
+    .panel {
+        border: 1px solid var(--border);
+        background: rgba(16,21,31,.9);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .panel.full {
+        grid-column: 1 / -1;
+    }
+
+    .panel-header {
+        padding: 17px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .panel-header h2 {
+        font-size: 15px;
+        margin: 0;
+    }
+
+    .panel-header .subtitle {
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+    .panel-body {
+        padding: 20px;
+    }
+
+    /* DOCUMENTS */
+
+    .documents {
+        display: grid;
+        gap: 12px;
+    }
+
+    .document {
+        padding: 15px;
+        border: 1px solid var(--border);
+        background: #0c1119;
+        border-radius: 12px;
+    }
+
+    .doc-title {
+        font-size: 13px;
+        font-weight: 800;
+        margin-bottom: 7px;
+    }
+
+    .doc-text {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+    }
+
+    .tag {
+        display: inline-flex;
+        padding: 4px 7px;
+        border-radius: 6px;
+        background: rgba(124,140,255,.1);
+        color: #aab2ff;
+        font-size: 9px;
+        font-weight: 800;
+        margin-top: 9px;
+    }
+
+    /* CHUNKS */
+
+    .chunk-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .chunk {
+        border: 1px solid var(--border);
+        border-radius: 11px;
+        padding: 13px;
+        background: #0c1119;
+        transition: .2s;
+    }
+
+    .chunk.highlight {
+        border-color: var(--accent-2);
+        background: rgba(67,217,163,.07);
+    }
+
+    .chunk-id {
+        color: var(--accent);
+        font-family: monospace;
+        font-size: 10px;
+        margin-bottom: 8px;
+    }
+
+    .chunk p {
+        margin: 0;
+        color: #b9c1ce;
+        font-size: 11px;
+        line-height: 1.5;
+    }
+
+    /* VECTOR */
+
+    .vector {
+        font-family: monospace;
+        font-size: 11px;
+        color: var(--accent-2);
+        background: #090d13;
+        border: 1px solid var(--border);
+        padding: 13px;
+        border-radius: 10px;
+        overflow-x: auto;
+        line-height: 1.6;
+    }
+
+    .vector-label {
+        color: var(--muted);
+        font-size: 10px;
+        margin: 13px 0 7px;
+    }
+
+    /* QUERY */
+
+    textarea {
+        width: 100%;
+        min-height: 95px;
+        resize: vertical;
+        border: 1px solid var(--border);
+        background: #0a0f17;
+        color: var(--text);
+        border-radius: 12px;
+        padding: 14px;
+        outline: none;
+        line-height: 1.5;
+    }
+
+    textarea:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(124,140,255,.1);
+    }
+
+    .query-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .query-hint {
+        color: var(--muted);
+        font-size: 11px;
+    }
+
+    /* RETRIEVAL */
+
+    .retrieval-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .retrieval-item {
+        display: grid;
+        grid-template-columns: 40px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px;
+        border: 1px solid var(--border);
+        background: #0c1119;
+        border-radius: 11px;
+    }
+
+    .rank {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        border-radius: 9px;
+        background: rgba(124,140,255,.1);
+        color: var(--accent);
+        font-weight: 900;
+        font-size: 12px;
+    }
+
+    .retrieval-text strong {
+        display: block;
+        font-size: 11px;
+        margin-bottom: 4px;
+    }
+
+    .retrieval-text span {
+        color: var(--muted);
+        font-size: 10px;
+    }
+
+    .score {
+        font-family: monospace;
+        color: var(--accent-2);
+        font-size: 12px;
+        text-align: right;
+    }
+
+    .score small {
+        display: block;
+        color: var(--muted);
+        font-family: inherit;
+        font-size: 9px;
+        margin-top: 3px;
+    }
+
+    /* PROMPT */
+
+    .prompt-box {
+        background: #090d13;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        font-family: monospace;
+        font-size: 11px;
+        color: #bfc8d5;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        overflow-x: auto;
+    }
+
+    .prompt-key {
+        color: var(--accent);
+    }
+
+    /* ANSWER */
+
+    .answer {
+        border: 1px solid rgba(67,217,163,.3);
+        background: rgba(67,217,163,.05);
+        border-radius: 13px;
+        padding: 18px;
+        line-height: 1.7;
+        color: #d8eee6;
+        font-size: 13px;
+    }
+
+    .answer-header {
+        color: var(--accent-2);
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+    }
+
+    /* EXPLANATION */
+
+    .explanation {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+
+    .explanation-card {
+        border: 1px solid var(--border);
+        background: #0c1119;
+        border-radius: 11px;
+        padding: 14px;
+    }
+
+    .explanation-card strong {
+        display: block;
+        font-size: 11px;
+        margin-bottom: 7px;
+    }
+
+    .explanation-card p {
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    /* STATUS */
+
+    .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        color: var(--muted);
+    }
+
+    .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent-2);
+        box-shadow: 0 0 10px rgba(67,217,163,.7);
+    }
+
+    .empty {
+        color: var(--muted);
+        font-size: 12px;
+        padding: 20px 0;
+        text-align: center;
+    }
+
+    /* RESPONSIVE */
+
+    @media (max-width: 1050px) {
+        .pipeline {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .explanation {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 760px) {
+        .hero {
+            flex-direction: column;
+        }
+
+        .definition {
+            width: 100%;
+        }
+
+        .main-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .panel.full {
+            grid-column: auto;
+        }
+
+        .pipeline {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .chunk-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .explanation {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- HERO -->
+
+    <header class="hero">
+        <div>
+            <div class="eyebrow">Interactive Learning Tool</div>
+            <h1>RAG Simulator</h1>
+            <p>
+                Follow a question through a simplified Retrieval-Augmented
+                Generation pipeline. Every stage is visible so you can see
+                what happens to documents, chunks, embeddings, retrieval,
+                context, and generation.
+            </p>
+        </div>
+
+        <div class="definition">
+            <strong>R · A · G</strong>
+            <span>
+                <b>Retrieval</b> — find relevant information.<br>
+                <b>Augmented</b> — add it to the model's context.<br>
+                <b>Generation</b> — let the LLM produce the answer.
+            </span>
+        </div>
+    </header>
+
+
+    <!-- PIPELINE -->
+
+    <div class="pipeline">
+
+        <div class="pipeline-step active" data-section="documents">
+            <div class="number">01</div>
+            <div class="name">Documents</div>
+            <div class="mini">Raw knowledge</div>
+        </div>
+
+        <div class="pipeline-step" data-section="chunking">
+            <div class="number">02</div>
+            <div class="name">Chunking</div>
+            <div class="mini">Split content</div>
+        </div>
+
+        <div class="pipeline-step" data-section="embedding">
+            <div class="number">03</div>
+            <div class="name">Embedding</div>
+            <div class="mini">Text → vectors</div>
+        </div>
+
+        <div class="pipeline-step" data-section="database">
+            <div class="number">04</div>
+            <div class="name">Vector DB</div>
+            <div class="mini">Store + index</div>
+        </div>
+
+        <div class="pipeline-step" data-section="query">
+            <div class="number">05</div>
+            <div class="name">Query</div>
+            <div class="mini">User question</div>
+        </div>
+
+        <div class="pipeline-step" data-section="retrieval">
+            <div class="number">06</div>
+            <div class="name">Retrieval</div>
+            <div class="mini">Find top-k</div>
+        </div>
+
+        <div class="pipeline-step" data-section="augmentation">
+            <div class="number">07</div>
+            <div class="name">Augmentation</div>
+            <div class="mini">Build context</div>
+        </div>
+
+        <div class="pipeline-step" data-section="generation">
+            <div class="number">08</div>
+            <div class="name">Generation</div>
+            <div class="mini">LLM answer</div>
+        </div>
+
+    </div>
+
+
+    <!-- CONTROLS -->
+
+    <div class="controls">
+        <button class="primary" id="runAll">Run Complete RAG</button>
+        <button id="runIngestion">Run Ingestion</button>
+        <button id="runRetrieval">Run Retrieval</button>
+        <button class="green" id="runGeneration">Generate Answer</button>
+        <button id="reset">Reset</button>
+    </div>
+
+
+    <div class="main-grid">
+
+        <!-- DOCUMENTS -->
+
+        <section class="panel" id="documents">
+            <div class="panel-header">
+                <div>
+                    <h2>01 · Source Documents</h2>
+                    <div class="subtitle">Your external knowledge base</div>
+                </div>
+                <div class="status">
+                    <span class="dot"></span>
+                    3 documents
+                </div>
+            </div>
+
+            <div class="panel-body">
+                <div class="documents">
+
+                    <div class="document">
+                        <div class="doc-title">Company Refund Policy</div>
+                        <div class="doc-text">
+                            Customers may request a full refund within
+                            30 days of the original purchase. Refunds are
+                            normally processed within 5–7 business days.
+                        </div>
+                        <span class="tag">refund-policy.pdf</span>
+                    </div>
+
+                    <div class="document">
+                        <div class="doc-title">Subscription Cancellation Guide</div>
+                        <div class="doc-text">
+                            Customers can cancel their subscription at any
+                            time from the billing settings page. Cancellation
+                            stops future renewals but does not automatically
+                            create a refund.
+                        </div>
+                        <span class="tag">subscriptions.md</span>
+                    </div>
+
+                    <div class="document">
+                        <div class="doc-title">Support FAQ</div>
+                        <div class="doc-text">
+                            Annual plans can be refunded within the first
+                            30 days. Monthly plans are also eligible for a
+                            refund when the request is made within 30 days
+                            of purchase.
+                        </div>
+                        <span class="tag">faq.txt</span>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+
+        <!-- CHUNKING -->
+
+        <section class="panel" id="chunking">
+            <div class="panel-header">
+                <div>
+                    <h2>02 · Chunking</h2>
+                    <div class="subtitle">Documents → retrievable units</div>
+                </div>
+                <div class="status">
+                    6 chunks
+                </div>
+            </div>
+
+            <div class="panel-body">
+                <div class="chunk-grid" id="chunks"></div>
+            </div>
+        </section>
+
+
+        <!-- EMBEDDING -->
+
+        <section class="panel" id="embedding">
+            <div class="panel-header">
+                <div>
+                    <h2>03 · Embedding</h2>
+                    <div class="subtitle">Chunk → numerical representation</div>
+                </div>
+                <div class="status">
+                    Model: DemoEmbed-v1
+                </div>
+            </div>
+
+            <div class="panel-body">
+
+                <div class="vector-label">
+                    Example embedding for CHUNK-001
+                </div>
+
+                <div class="vector" id="vectorExample">
+                    Run ingestion to generate embeddings...
+                </div>
+
+                <div class="vector-label">
+                    Important concept
+                </div>
+
+                <div class="explanation-card">
+                    <strong>Embedding dimensionality</strong>
+                    <p>
+                        The embedding model determines the vector dimensions.
+                        The vector database stores and indexes those vectors.
+                        The database does not inherently impose a "1,500
+                        dimension" limit.
+                    </p>
+                </div>
+
+            </div>
+        </section>
+
+
+        <!-- VECTOR DATABASE -->
+
+        <section class="panel" id="database">
+            <div class="panel-header">
+                <div>
+                    <h2>04 · Vector Database</h2>
+                    <div class="subtitle">Vectors + metadata + similarity index</div>
+                </div>
+                <div class="status">
+                    Indexed
+                </div>
+            </div>
+
+            <div class="panel-body">
+
+                <div class="vector-label">Conceptual database record</div>
+
+                <div class="prompt-box" id="dbRecord">
+{
+  "id": "CHUNK-001",
+  "embedding": [ ... ],
+  "metadata": {
+    "document": "refund-policy.pdf",
+    "section": "Refund Policy"
+  }
+}
+                </div>
+
+                <div class="vector-label">What is actually searchable?</div>
+
+                <div class="explanation">
+                    <div class="explanation-card">
+                        <strong>Semantic similarity</strong>
+                        <p>
+                            Finds text with similar meaning even when exact
+                            words differ.
+                        </p>
+                    </div>
+
+                    <div class="explanation-card">
+                        <strong>Metadata filtering</strong>
+                        <p>
+                            Restrict results by document, department,
+                            permissions, date, tenant, etc.
+                        </p>
+                    </div>
+
+                    <div class="explanation-card">
+                        <strong>Keyword search</strong>
+                        <p>
+                            Exact terms can still matter. Hybrid retrieval
+                            combines lexical and semantic signals.
+                        </p>
+                    </div>
+
+                    <div class="explanation-card">
+                        <strong>Top-k</strong>
+                        <p>
+                            Retrieval normally returns a limited number of
+                            candidate chunks rather than the entire corpus.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+
+        <!-- QUERY -->
+
+        <section class="panel" id="query">
+            <div class="panel-header">
+                <div>
+                    <h2>05 · User Query</h2>
+                    <div class="subtitle">The user's question enters the system</div>
+                </div>
+            </div>
+
+            <div class="panel-body">
+
+                <textarea id="userQuery">Can I get a refund if I cancel my subscription?</textarea>
+
+                <div class="query-actions">
+                    <span class="query-hint">
+                        The query becomes an embedding — not a system prompt.
+                    </span>
+
+                    <button class="primary" id="embedQuery">
+                        Embed Query
+                    </button>
+                </div>
+
+                <div class="vector-label">
+                    Query embedding
+                </div>
+
+                <div class="vector" id="queryVector">
+                    Click "Embed Query"...
+                </div>
+
+            </div>
+        </section>
+
+
+        <!-- RETRIEVAL -->
+
+        <section class="panel" id="retrieval">
+            <div class="panel-header">
+                <div>
+                    <h2>06 · Retrieval</h2>
+                    <div class="subtitle">Semantic + keyword → top-k candidates</div>
+                </div>
+
+                <div class="status">
+                    Hybrid Search
+                </div>
+            </div>
+
+            <div class="panel-body">
+
+                <div class="vector-label">
+                    Similarity / relevance ranking
+                </div>
+
+                <div class="retrieval-list" id="retrievalList">
+                    <div class="empty">
+                        Run retrieval to see ranked chunks.
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+
+        <!-- AUGMENTATION -->
+
+        <section class="panel full" id="augmentation">
+            <div class="panel-header">
+                <div>
+                    <h2>07 · Augmentation</h2>
+                    <div class="subtitle">
+                        Retrieved chunks are inserted into the LLM's context
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-body">
+
+                <div class="prompt-box" id="augmentedPrompt">
+                    Run retrieval to construct the augmented prompt...
+                </div>
+
+            </div>
+        </section>
+
+
+        <!-- GENERATION -->
+
+        <section class="panel full" id="generation">
+            <div class="panel-header">
+                <div>
+                    <h2>08 · Generation</h2>
+                    <div class="subtitle">
+                        LLM + retrieved context → final response
+                    </div>
+                </div>
+
+                <div class="status">
+                    Grounded generation
+                </div>
+            </div>
+
+            <div class="panel-body">
+
+                <div class="answer" id="answer">
+                    <div class="answer-header">
+                        LLM Output
+                    </div>
+
+                    Run the complete pipeline to generate an answer.
+                </div>
+
+            </div>
+        </section>
+
+
+        <!-- MENTAL MODEL -->
+
+        <section class="panel full">
+            <div class="panel-header">
+                <div>
+                    <h2>The Mental Model</h2>
+                    <div class="subtitle">
+                        What you should remember
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-body">
+
+                <div class="explanation">
+
+                    <div class="explanation-card">
+                        <strong>1. Ingestion</strong>
+                        <p>
+                            Load documents, clean them, split them into
+                            chunks, embed the chunks, and store vectors plus
+                            metadata.
+                        </p>
+                    </div>
+
+                    <div class="explanation-card">
+                        <strong>2. Query</strong>
+                        <p>
+                            Convert the user's question into a query embedding
+                            using the embedding model.
+                        </p>
+                    </div>
+
+                    <div class="explanation-card">
+                        <strong>3. Retrieval</strong>
+                        <p>
+                            Search the vector index, optionally combine it
+                            with keyword search, rank results, and select
+                            relevant chunks.
+                        </p>
+                    </div>
+
+                    <div class="explanation-card">
+                        <strong>4. Generation</strong>
+                        <p>
+                            Put the retrieved chunks into the LLM context.
+                            The LLM generates an answer grounded in that
+                            retrieved information.
+                        </p>
+                    </div>
+
+                </div>
+
+            </div>
+        </section>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/*
+=========================================================
+RAG SIMULATOR
+=========================================================
+
+This is intentionally NOT a real RAG implementation.
+
+There is no real embedding model or vector database here.
+
+Instead, we create deterministic toy vectors from text so
+you can visualize the architecture.
+
+REAL RAG:
+
+Documents
+   ↓
+Chunking
+   ↓
+Embedding Model
+   ↓
+Vector Database
+   ↓
+Query Embedding
+   ↓
+Similarity / Hybrid Search
+   ↓
+Top-K Chunks
+   ↓
+LLM Context
+   ↓
+Generation
+
+=========================================================
+*/
+
+
+// -------------------------------------------------------
+// DEMO DATA
+// -------------------------------------------------------
+
+const chunks = [
+
+    {
+        id: "CHUNK-001",
+        document: "refund-policy.pdf",
+        text:
+        "Customers may request a full refund within 30 days of the original purchase.",
+        keywords: ["refund", "30 days", "purchase"]
+    },
+
+    {
+        id: "CHUNK-002",
+        document: "refund-policy.pdf",
+        text:
+        "Refunds are normally processed within 5–7 business days after approval.",
+        keywords: ["refund", "processed", "business days"]
+    },
+
+    {
+        id: "CHUNK-003",
+        document: "subscriptions.md",
+        text:
+        "Customers can cancel their subscription at any time from the billing settings page.",
+        keywords: ["cancel", "subscription", "billing"]
+    },
+
+    {
+        id: "CHUNK-004",
+        document: "subscriptions.md",
+        text:
+        "Cancellation stops future renewals but does not automatically create a refund.",
+        keywords: ["cancellation", "renewal", "refund"]
+    },
+
+    {
+        id: "CHUNK-005",
+        document: "faq.txt",
+        text:
+        "Annual plans can be refunded within the first 30 days.",
+        keywords: ["annual", "refund", "30 days"]
+    },
+
+    {
+        id: "CHUNK-006",
+        document: "faq.txt",
+        text:
+        "Monthly plans are also eligible for a refund when the request is made within 30 days of purchase.",
+        keywords: ["monthly", "refund", "30 days", "purchase"]
+    }
+
+];
+
+
+// -------------------------------------------------------
+// STATE
+// -------------------------------------------------------
+
+let state = {
+    embedded: false,
+    queryEmbedded: false,
+    retrieved: [],
+    generated: false
+};
+
+
+// -------------------------------------------------------
+// DOM
+// -------------------------------------------------------
+
+const chunksContainer =
+    document.getElementById("chunks");
+
+const vectorExample =
+    document.getElementById("vectorExample");
+
+const dbRecord =
+    document.getElementById("dbRecord");
+
+const queryVector =
+    document.getElementById("queryVector");
+
+const retrievalList =
+    document.getElementById("retrievalList");
+
+const augmentedPrompt =
+    document.getElementById("augmentedPrompt");
+
+const answer =
+    document.getElementById("answer");
+
+
+// -------------------------------------------------------
+// SIMPLE DEMO EMBEDDING
+// -------------------------------------------------------
+
+/*
+A real embedding model might produce hundreds or thousands
+of floating-point dimensions.
+
+For visualization, we create an 8-dimensional vector.
+
+The values are deterministic based on the characters in
+the text. This is NOT semantic embedding.
+
+Its purpose is simply to demonstrate:
+
+TEXT → VECTOR
+*/
+
+function fakeEmbedding(text) {
+
+    const vector = [];
+
+    for (let i = 0; i < 8; i++) {
+
+        let total = 0;
+
+        for (let j = i; j < text.length; j += 8) {
+            total += text.charCodeAt(j);
+        }
+
+        const value =
+            Math.sin(total * 0.017 + i) * 0.9;
+
+        vector.push(Number(value.toFixed(3)));
+    }
+
+    return vector;
+}
+
+
+// -------------------------------------------------------
+// COSINE SIMILARITY
+// -------------------------------------------------------
+
+function cosineSimilarity(a, b) {
+
+    let dot = 0;
+    let magnitudeA = 0;
+    let magnitudeB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+
+        dot += a[i] * b[i];
+
+        magnitudeA += a[i] * a[i];
+
+        magnitudeB += b[i] * b[i];
+    }
+
+    if (!magnitudeA || !magnitudeB) {
+        return 0;
+    }
+
+    return dot /
+        (Math.sqrt(magnitudeA) *
+         Math.sqrt(magnitudeB));
+}
+
+
+// -------------------------------------------------------
+// KEYWORD SCORE
+// -------------------------------------------------------
+
+function keywordScore(query, chunk) {
+
+    const q = query.toLowerCase();
+
+    let matches = 0;
+
+    chunk.keywords.forEach(keyword => {
+
+        if (q.includes(keyword.toLowerCase())) {
+            matches++;
+        }
+
+    });
+
+    return matches /
+        Math.max(chunk.keywords.length, 1);
+}
+
+
+// -------------------------------------------------------
+// HYBRID SCORE
+// -------------------------------------------------------
+
+function hybridScore(query, chunk) {
+
+    const queryVector =
+        fakeEmbedding(query);
+
+    const semantic =
+        cosineSimilarity(
+            queryVector,
+            chunk.embedding
+        );
+
+    const lexical =
+        keywordScore(query, chunk);
+
+    /*
+    Real systems can use sophisticated ranking methods.
+
+    Here we use:
+
+    70% semantic similarity
+    30% keyword matching
+    */
+
+    const semanticNormalized =
+        (semantic + 1) / 2;
+
+    return (
+        semanticNormalized * 0.7 +
+        lexical * 0.3
+    );
+}
+
+
+// -------------------------------------------------------
+// RENDER CHUNKS
+// -------------------------------------------------------
+
+function renderChunks() {
+
+    chunksContainer.innerHTML = "";
+
+    chunks.forEach(chunk => {
+
+        const div =
+            document.createElement("div");
+
+        div.className = "chunk";
+
+        div.id = chunk.id;
+
+        div.innerHTML = `
+            <div class="chunk-id">${chunk.id}</div>
+            <p>${chunk.text}</p>
+        `;
+
+        chunksContainer.appendChild(div);
+    });
+}
+
+
+// -------------------------------------------------------
+// INGESTION
+// -------------------------------------------------------
+
+function runIngestion() {
+
+    chunks.forEach(chunk => {
+
+        chunk.embedding =
+            fakeEmbedding(
+                chunk.text
+            );
+    });
+
+    state.embedded = true;
+
+    renderChunks();
+
+    const example =
+        chunks[0].embedding;
+
+    vectorExample.textContent =
+        `[ ${example.join(", ")} ]`;
+
+    dbRecord.textContent =
+`{
+  "id": "CHUNK-001",
+
+  "embedding": [
+    ${example.join(", ")}
+  ],
+
+  "metadata": {
+    "document": "refund-policy.pdf",
+    "type": "policy",
+    "chunk": 1
+  }
+}`;
+
+    document
+        .querySelector('[data-section="embedding"]')
+        .classList.add("active");
+
+    document
+        .querySelector('[data-section="database"]')
+        .classList.add("active");
+}
+
+
+// -------------------------------------------------------
+// QUERY EMBEDDING
+// -------------------------------------------------------
+
+function embedQuery() {
+
+    if (!state.embedded) {
+        runIngestion();
+    }
+
+    const query =
+        document.getElementById("userQuery")
+        .value
+        .trim();
+
+    if (!query) {
+        return;
+    }
+
+    const vector =
+        fakeEmbedding(query);
+
+    state.queryEmbedded = true;
+
+    queryVector.textContent =
+        `[ ${vector.join(", ")} ]`;
+
+    document
+        .querySelector('[data-section="query"]')
+        .classList.add("active");
+}
+
+
+// -------------------------------------------------------
+// RETRIEVAL
+// -------------------------------------------------------
+
+function runRetrieval() {
+
+    if (!state.embedded) {
+        runIngestion();
+    }
+
+    embedQuery();
+
+    const query =
+        document.getElementById("userQuery")
+        .value
+        .trim();
+
+    /*
+    Score every chunk.
+
+    Real vector databases use specialized indexes
+    such as HNSW, IVF, PQ, etc., depending on the system.
+
+    We simulate the logical outcome here.
+    */
+
+    const results =
+        chunks
+        .map(chunk => {
+
+            const semantic =
+                cosineSimilarity(
+                    fakeEmbedding(query),
+                    chunk.embedding
+                );
+
+            const lexical =
+                keywordScore(query, chunk);
+
+            const score =
+                hybridScore(query, chunk);
+
+            return {
+                ...chunk,
+                semantic,
+                lexical,
+                score
+            };
+
+        })
+        .sort(
+            (a, b) =>
+                b.score - a.score
+        )
+        .slice(0, 4);
+
+    state.retrieved = results;
+
+    retrievalList.innerHTML = "";
+
+    results.forEach((result, index) => {
+
+        const item =
+            document.createElement("div");
+
+        item.className =
+            "retrieval-item";
+
+        item.innerHTML = `
+            <div class="rank">
+                ${index + 1}
+            </div>
+
+            <div class="retrieval-text">
+                <strong>
+                    ${result.id} · ${result.document}
+                </strong>
+
+                <span>
+                    ${result.text}
+                </span>
+            </div>
+
+            <div class="score">
+                ${result.score.toFixed(3)}
+                <small>
+                    semantic ${((result.semantic + 1) / 2).toFixed(2)}
+                    · keyword ${result.lexical.toFixed(2)}
+                </small>
+            </div>
+        `;
+
+        retrievalList.appendChild(item);
+    });
+
+
+    // Highlight retrieved chunks.
+
+    document
+        .querySelectorAll(".chunk")
+        .forEach(el => {
+            el.classList.remove("highlight");
+        });
+
+    results.forEach(result => {
+
+        const el =
+            document.getElementById(result.id);
+
+        if (el) {
+            el.classList.add("highlight");
+        }
+    });
+
+
+    document
+        .querySelector('[data-section="retrieval"]')
+        .classList.add("active");
+
+
+    buildAugmentedPrompt();
+}
+
+
+// -------------------------------------------------------
+// AUGMENTATION
+// -------------------------------------------------------
+
+function buildAugmentedPrompt() {
+
+    if (!state.retrieved.length) {
+        augmentedPrompt.textContent =
+            "Run retrieval to construct the augmented prompt...";
+        return;
+    }
+
+    const query =
+        document.getElementById("userQuery")
+        .value
+        .trim();
+
+    const context =
+        state.retrieved
+        .map((item, index) => {
+
+            return `[SOURCE ${index + 1}]
+Document: ${item.document}
+Chunk: ${item.id}
+Content: ${item.text}`;
+
+        })
+        .join("\n\n");
+
+
+    augmentedPrompt.textContent =
+`SYSTEM INSTRUCTION:
+Answer the user's question using the retrieved context.
+Do not invent facts that are not supported by the context.
+
+USER QUESTION:
+${query}
+
+RETRIEVED CONTEXT:
+${context}
+
+TASK:
+Generate a concise, grounded answer to the user's question.`;
+
+    document
+        .querySelector('[data-section="augmentation"]')
+        .classList.add("active");
+}
+
+
+// -------------------------------------------------------
+// GENERATION
+// -------------------------------------------------------
+
+function generateAnswer() {
+
+    if (!state.retrieved.length) {
+        runRetrieval();
+    }
+
+    const query =
+        document.getElementById("userQuery")
+        .value
+        .trim()
+        .toLowerCase();
+
+
+    /*
+    This is a simulated LLM.
+
+    A real system would send:
+
+        system instructions
+        +
+        user question
+        +
+        retrieved context
+
+    to an LLM API.
+
+    We generate a deterministic answer here
+    so this file works completely offline.
+    */
+
+
+    let response =
+        "Based on the retrieved company information, ";
+
+    if (
+        query.includes("refund") &&
+        query.includes("cancel")
+    ) {
+
+        response +=
+            "cancelling your subscription does not automatically create a refund. " +
+            "However, the refund policy states that customers may request a full " +
+            "refund within 30 days of the original purchase. ";
+
+        response +=
+            "The cancellation itself stops future renewals, while refund eligibility " +
+            "depends on the applicable refund policy.";
+
+    } else {
+
+        const best =
+            state.retrieved[0];
+
+        response +=
+            best
+            ? best.text
+            : "I could not find sufficiently relevant information.";
+    }
+
+
+    answer.innerHTML = `
+        <div class="answer-header">
+            LLM Output · Grounded in Retrieved Context
+        </div>
+
+        ${response}
+
+        <br><br>
+
+        <span style="color:var(--muted);font-size:10px;">
+            Sources used:
+            ${state.retrieved
+                .map(x => x.id)
+                .join(", ")}
+        </span>
+    `;
+
+
+    state.generated = true;
+
+    document
+        .querySelector('[data-section="generation"]')
+        .classList.add("active");
+}
+
+
+// -------------------------------------------------------
+// RUN EVERYTHING
+// -------------------------------------------------------
+
+function runAll() {
+
+    runIngestion();
+
+    setTimeout(() => {
+        embedQuery();
+    }, 250);
+
+    setTimeout(() => {
+        runRetrieval();
+    }, 500);
+
+    setTimeout(() => {
+        generateAnswer();
+    }, 750);
+}
+
+
+// -------------------------------------------------------
+// RESET
+// -------------------------------------------------------
+
+function reset() {
+
+    state = {
+        embedded: false,
+        queryEmbedded: false,
+        retrieved: [],
+        generated: false
+    };
+
+    chunks.forEach(chunk => {
+        delete chunk.embedding;
+    });
+
+    vectorExample.textContent =
+        "Run ingestion to generate embeddings...";
+
+    queryVector.textContent =
+        'Click "Embed Query"...';
+
+    retrievalList.innerHTML =
+        `<div class="empty">
+            Run retrieval to see ranked chunks.
+        </div>`;
+
+    augmentedPrompt.textContent =
+        "Run retrieval to construct the augmented prompt...";
+
+    answer.innerHTML = `
+        <div class="answer-header">
+            LLM Output
+        </div>
+
+        Run the complete pipeline to generate an answer.
+    `;
+
+    document
+        .querySelectorAll(".chunk")
+        .forEach(el => {
+            el.classList.remove("highlight");
+        });
+
+    document
+        .querySelectorAll(".pipeline-step")
+        .forEach((el, index) => {
+
+            el.classList.toggle(
+                "active",
+                index === 0
+            );
+
+        });
+}
+
+
+// -------------------------------------------------------
+// PIPELINE NAVIGATION
+// -------------------------------------------------------
+
+document
+    .querySelectorAll(".pipeline-step")
+    .forEach(step => {
+
+        step.addEventListener("click", () => {
+
+            const id =
+                step.dataset.section;
+
+            const target =
+                document.getElementById(id);
+
+            if (target) {
+
+                target.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+            }
+        });
+    });
+
+
+// -------------------------------------------------------
+// BUTTONS
+// -------------------------------------------------------
+
+document
+    .getElementById("runAll")
+    .addEventListener(
+        "click",
+        runAll
+    );
+
+document
+    .getElementById("runIngestion")
+    .addEventListener(
+        "click",
+        runIngestion
+    );
+
+document
+    .getElementById("runRetrieval")
+    .addEventListener(
+        "click",
+        runRetrieval
+    );
+
+document
+    .getElementById("runGeneration")
+    .addEventListener(
+        "click",
+        generateAnswer
+    );
+
+document
+    .getElementById("embedQuery")
+    .addEventListener(
+        "click",
+        embedQuery
+    );
+
+document
+    .getElementById("reset")
+    .addEventListener(
+        "click",
+        reset
+    );
+
+
+// -------------------------------------------------------
+// INITIAL RENDER
+// -------------------------------------------------------
+
+renderChunks();
+
+</script>
+
+</body>
+</html>
